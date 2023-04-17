@@ -6,12 +6,19 @@ require('dotenv').config()
 
 const CORS_ORIGIN = '*'
 const cors = require('cors')
-const io = require('socket.io')(server, { cors: { origin: CORS_ORIGIN } })
+// const io = require('socket.io')(server, { cors: { origin: CORS_ORIGIN } })
 
 app.use(cors({ origin: CORS_ORIGIN }))
 
-io.on('connection', socket => {
-    console.log(`Socket Connected: ${socket.id}`)
+// io.on('connection', socket => {
+//     console.log(`Socket Connected: ${socket.id}`)
+// })
+
+app.get('/', (req, res) => {
+    res.json({
+        message: 'Hello World!',
+        time: new Date()
+    })
 })
 
 async function youtubeKeywordSearch(keywords) {
