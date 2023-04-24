@@ -94,6 +94,9 @@ app.get('/api',async (req, res) => {
         download.pipe(res)
 
         download.on('end', () => {
+            const stats = CacheStats()
+
+            if(stats.totalSizeMegabytes >= 30) return console.log('Cache Limit')
             // return
 
             const writeStream = fs.createWriteStream(path.join(cachePath, `${req.query.keywords}.mp4`))
