@@ -44,6 +44,7 @@ app.get('/api',async (req, res) => {
 
         download.pipe(res)
     } catch(err) {
+        console.error(err)
         res.status(500).send(err.message)
     }
 })
