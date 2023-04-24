@@ -17,7 +17,7 @@ const ytdl = require('ytdl-core')
 
 app.use(cors({ origin: CORS_ORIGIN }))
 app.use((req, res, next) => {
-    if(req.path !== '/api' && req.path !== '/api/count') return res.sendStatus(200)
+    if(req.path !== '/api' && req.path !== '/api/count' && req.path !== '/api/dev') return res.sendStatus(200)
     
     next()
 })
@@ -32,16 +32,28 @@ console.log(
     `\x1b[34mMemory: ${memoryUsage} MB\x1b[37m`
 )
 
+app.get('/api/dev', (req, res) => {
+    const stats = CacheStats()
+
+    res.json(stats)
+})
+
 app.get('/api/count', (req ,res) => {
     const getJSON = () => JSON.parse(fs.readFileSync(path.join(__dirname, 'Cache.json'), 'utf-8'))
+    const stats = () => fs.statSync(path.join(__dirname, 'Cache.json'))
 
-    fs.writeFileSync(path.join(__dirname, 'Cache.json'), JSON.stringify({
+    const newData = JSON.stringify({
         ...getJSON(),
         count: getJSON()?.count + 1 ?? 0,
         lastUpdated: new Date()
-    }))
+    })
 
-    res.json(getJSON())
+    fs.writeFileSync(path.join(__dirname, 'Cache.json'), newData)
+
+    res.json({
+        ...getJSON(),
+        size: stats().size
+    })
 })
 
 app.get('/api',async (req, res) => {
@@ -52,8 +64,25 @@ app.get('/api',async (req, res) => {
     const url = `https://www.youtube.com/watch?v=${searchResult.data.id}`
 
     try {
+        const cachePath = path.join(__dirname, 'Cache')
+        const folder = fs.readdirSync(cachePath)
+        const existsInCache = folder.some(filename => filename === req.query.keywords + '.mp4')
+
+        if(existsInCache) {
+            res.setHeader('Content-Type', 'audio/mp4')
+
+            console.log(`\x1b[32mCached Audio: ${req.query.keywords}\x1b[37m`)
+
+            fs.createReadStream(path.join(cachePath, req.query.keywords + '.mp4')).pipe(res)
+
+            return
+        }
+
         // https://stackoverflow.com/questions/19553837/node-js-piping-the-same-readable-stream-into-multiple-writable-targets
         const download = ytdl(url, { filter: format => format.hasVideo && format.hasAudio })
+        const cacheDownload = ytdl(url, { filter: format => format.hasVideo && format.hasAudio })
+        
+
         // const info = await ytdl.getInfo(searchResult.data.id)
         // const formats = info.formats.find(format => format.hasVideo && format.hasAudio)
         // const { codecs, videoCodec, audioCodec } = formats
@@ -63,11 +92,42 @@ app.get('/api',async (req, res) => {
         // CacheAudio({ stream: cacheDownload, url, keywords: req.query.keywords })
 
         download.pipe(res)
+
+        download.on('end', () => {
+            // return
+
+            const writeStream = fs.createWriteStream(path.join(cachePath, `${req.query.keywords}.mp4`))
+
+            console.log(`Caching: ${req.query.keywords}`)
+
+            cacheDownload.pipe(writeStream)
+        })
     } catch(err) {
         console.log(err)
         res.status(500).send(err.toString())
     }
 })
+
+function CacheStats() {
+    const cachePath = path.join(__dirname, 'Cache')
+    const folder = fs.readdirSync(cachePath)
+    const stats = {
+        files: folder.map(filename => {
+            const data = Object.assign(fs.statSync(path.join(cachePath, filename)), { filename })
+    
+            data.megabytes = data.size / 1e+6
+    
+            return data
+        })
+    }
+
+    const totalSize = stats.files.length > 0 ? stats.files.map(v => v.size).reduce((t, v) => t + v) : 0
+
+    stats.totalSize = totalSize
+    stats.totalSizeMegabytes = totalSize / 1e+6
+
+    return stats
+}
 
 async function CacheAudio({ stream, url='', keywords='' }={}) {
     if(!(stream instanceof PassThrough)) return console.error('Failed to cache, Stream invalid', stream)
