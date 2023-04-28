@@ -18,6 +18,6 @@
     "express": "^4.18.2",
     "uuid": "^9.0.0",
     "youtube-search-api": "^1.1.1",
-    "ytdl-core": "github:khlevon/node-ytdl-core#v4.11.4-patch.1"
+    "ytdl-core": "github:khlevon/node-ytdl-core#v4.11.4-patch.2"
   }
 }
